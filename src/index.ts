@@ -93,15 +93,19 @@ abstract class BaseFileManager {
 }
 
 class PBXManager extends BaseFileManager {
-    bumpProjectVersion() {
+    bumpProjectVersion(even: boolean) {
         const currentFile = this.read();
         const codeRegex = /CURRENT_PROJECT_VERSION = (\d+);/g;
         const currentCode = pipe2(
             matchFirst(codeRegex),
             parseDecimal,
         )(currentFile);
-        const nextCode = currentCode + 1;
-
+        let nextCode = currentCode + 1;
+        if (even) {
+            nextCode = 2 * Math.ceil(nextCode / 2);
+        } else {
+            nextCode = nextCode % 2 ? nextCode : nextCode + 1;
+        }
         this.content = replace(
             codeRegex,
             `CURRENT_PROJECT_VERSION = ${nextCode};`,
@@ -133,14 +137,18 @@ class PBXManager extends BaseFileManager {
 }
 
 class BuildGradleManager extends BaseFileManager {
-    bumpCode() {
+    bumpCode(even: boolean) {
         const currentFile = this.read()!;
         const codeExp = /versionCode (\d+)/;
 
         const versionMatch = matchFirst(codeExp)(currentFile);
         const current = parseDecimal(versionMatch);
-        const next = current + 1;
-
+        let next = current + 1;
+        if (even) {
+            next = 2 * Math.ceil(next / 2);
+        } else {
+            next = next % 2 ? next : next + 1;
+        }
         if (isNaN(next)) {
             throw new Error(`Invalid versionCode version parsed (${versionMatch})`);
         }
@@ -261,13 +269,14 @@ class ProjectFilesManager {
     }
 
     bumpCodes() {
-        const { skipCodeFor } = this.configs;
+        const { skipCodeFor, type } = this.configs;
+        const even = type === 'minor' || type === 'major';
 
         if (!skipCodeFor.includes("ios")) {
             const {
                 next: pbxNext,
                 current: pbxCurrent,
-            } = this.pbx.bumpProjectVersion();
+            } = this.pbx.bumpProjectVersion(even);
             console.log(`iOS project.pbxproj code: ${pbxCurrent} -> ${pbxNext}`);
         }
 
@@ -275,7 +284,7 @@ class ProjectFilesManager {
             const {
                 next: gradleNext,
                 current: gradleCurrent,
-            } = this.buildGradle.bumpCode();
+            } = this.buildGradle.bumpCode(even);
             console.log(`Android build.gradle code: ${gradleCurrent} -> ${gradleNext}`);
         }
     }
